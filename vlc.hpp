@@ -6,6 +6,7 @@
 #include <sstream>
 #include <fstream>
 
+#include <iostream>
 
 namespace vlc {
 
@@ -39,14 +40,14 @@ public:
     }
 
     void numericprint(std::ostream& out) const {
-        for (int i=0; i<=size_bits/8; i++) {
+        for (size_t i=0; i<=size_bits/8; i++) {
             out << int(buf[i]) << " ";
         }
     }
 
     void debugprint(std::ostream &out, bool perbyte=false) const {
         if (size_bits==0) return;
-        for (int i=0; i<=(size_bits-1)/8; i++) {
+        for (int i=0; i<=int((size_bits-1)/8); i++) {
             vlc::byte a = buf.at(i);
             for (int j=0;j<std::min(8,signed(size_bits)-i*8);j++) {
 
@@ -64,6 +65,7 @@ public:
         }
     }
     void save(std::ofstream& out) {
+        out.write((char *)&size_bits, sizeof(size_bits));
         if (size_bits==0) return;
         out.write((char *)&(buf[0]),size_bits/8+1);
     }
@@ -72,13 +74,93 @@ public:
         std::ofstream f(fname, std::ios::binary);
         save(f);
     }
+    bool load(std::ifstream &f) {
+        size_t sizebits;
+        f.read((char*)&sizebits, sizeof(sizebits));
+        if (!f.good()) return false;
+        buf.resize(sizebits/8+1, 0);
+        f.read((char*)&(buf[0]), sizebits/8+1);
+        if (!f.good()) return false;
+        size_bits = sizebits;
+    }
+
+    bool load_file(std::string fname) {
+        std::ifstream f(fname, std::ios::binary);
+        return load(f);
+    }
 };
 
-std::ostream& operator<<(std::ostream &out, chunk c) {
+static std::ostream& operator<<(std::ostream &out, chunk c) {
     c.debugprint(out);
     return out;
 }
 
+static unsigned int zigzag(int x) {
+    if (x<0) {
+        return -x*2;
+    } else return x*2+1;
+}
+
+static int unzigzag(unsigned int x) {
+    if (x % 2) {
+        return x/2;
+    } else return -int(x)/2;
+}
+
+
+
+template<typename T>
+class PrefixCode {
+public:
+    virtual void debugdump(std::ostream& out) { out << "dump is unsupported"; }
+    virtual bool encode(const std::vector<T>& v, chunk& c) = 0;
+    virtual bool decode(const chunk& c, std::vector<T> &v) = 0;
+
+};
+
+template<int K>
+class NumericSemiBlockCode : public PrefixCode<int> {
+public:
+    bool put_element(unsigned int x, chunk &c) {
+        chunk a;
+        while (x >= ((1<<K)-1)) {
+            for (int k=0;k<K;k++) {
+                a.put_bit(1);
+            }
+            x -= ((1<<K)-1);
+        }
+        for (int i=K-1; i>=0;i--) {
+            a.put_bit( x & (1<<i) );
+        }
+        c.put_chunk(a);
+    }
+
+    virtual bool encode(const std::vector<int>& v, chunk& c) {
+        for (int a : v) {
+            put_element(zigzag(a), c);
+        }
+        return true;
+    }
+    virtual bool decode(const chunk& c, std::vector<int> &v) {
+        int a = 0;
+        std::vector<int> curr(K,0);
+        for (size_t i=0;i<c.get_size_bits()/K;i++) {
+            for (int b=0;b<K;b++) {
+                curr[b] = c.get_bit(i*K+b);
+            }
+            if (curr == std::vector<int>(K,1)) {
+                a += ((1<<K) - 1);
+            } else {
+                for (int j=0; j<K; j++) {
+                    a += (1<<(K-j-1))*(!!curr[j]);
+                }
+                v.push_back(unzigzag(a));
+                a=0;
+            }
+        }
+        return false;
+    }
+};
 
 
 class VLC {

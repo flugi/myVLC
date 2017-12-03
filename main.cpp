@@ -22,7 +22,7 @@ void chunk_basic_test() {
         stringstream ss;
         ss << c;
         string s2;
-        for (int i=0;i<c.get_size_bits();i++) {
+        for (size_t i=0;i<c.get_size_bits();i++) {
             s2 += c.get_bit(i)?'1':'0';
         }
         if (ss.str() == s && s == s2) {
@@ -68,11 +68,50 @@ void chunk_file_test() {
     c.save_file("_test");
     ifstream f("_test");
     string sb="    ";
+    size_t placeholder;
+    f.read((char*)&placeholder, sizeof(placeholder));
     f.read((char *)&(sb[0]),4);
     if (sb == "ABCD") {
         cout << "OK" << endl;
     } else {
         cout << "ERROR" << endl;
+    }
+    vlc::chunk c2;
+    c2.load_file("_test");
+    stringstream ss;
+    c2.debugprint(ss);
+    cout << s << endl;
+    cout << ss.str() << endl;
+}
+
+void semiblockcode_test() {
+    {
+        vlc::NumericSemiBlockCode<3> nbc;
+        vector<int> v = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
+        vlc::chunk c;
+        nbc.encode(v, c);
+        vector<int> v2;
+        nbc.decode(c, v2);
+        if (v == v2) {
+            cout << "OK" << endl;
+        } else {
+            for (int a : v) {
+                cout << a << " ";
+            }
+            cout <<endl<< c << endl;
+            for (int a : v2) {
+                cout << a << " ";
+            }
+            cout << endl;
+
+        }
+    }
+    {
+        for (int i=-10;i<=10;i++) {
+            if (vlc::unzigzag(vlc::zigzag(i)) != i) {
+            cout <<i << " " << vlc::zigzag(i) << " " << vlc::unzigzag(vlc::zigzag(i)) << endl;
+            }
+        }
     }
 }
 
@@ -80,4 +119,5 @@ int main() {
     chunk_basic_test();
     chunk_concat_test();
     chunk_file_test();
+    semiblockcode_test();
 }
