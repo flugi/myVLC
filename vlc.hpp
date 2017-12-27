@@ -5,6 +5,8 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <map>
+#include <queue>
 
 #include <iostream>
 
@@ -158,6 +160,91 @@ public:
                 a=0;
             }
         }
+        return false;
+    }
+};
+
+struct HC {
+    int num, data;
+    chunk bits;
+    HC *p,*l,*r;
+    HC(int d,int n) {
+        data=d;
+        num=n;
+        p=0;
+        l=0;
+        r=0;
+    }
+};
+
+struct HCCompare {
+bool operator ()(const HC*a, const HC*b) {
+        return a->num > b->num;
+    }
+};
+
+bool kisebb(HC*a, HC*b) {
+    return a->num < b->num;
+}
+
+void preorder(HC* a, std::string s, std::map<int, chunk>& dict) {
+//    std::cout << s << " ";
+    if (!a->l && !a->r) {
+        chunk c;
+        c.debugput(s);
+        dict[a->data] = c;
+    }
+    if (a->l) preorder(a->l, s+'0', dict);
+    if (a->r) preorder(a->r, s+'1', dict);
+}
+
+class HuffmanCode : public PrefixCode<int> {
+    std::map<int, chunk> dictionary;
+public:
+    bool put_element(unsigned int x, chunk &c) {
+        c.put_chunk(dictionary.at(x));
+    }
+
+
+    void build(const std::vector<int>& v) {
+        std::map<int, int> hist;
+        for (int a : v) {
+            hist[a]++;
+        }
+        std::priority_queue<HC*, std::vector<HC*>, HCCompare> table;
+        for (std::pair<int,int>p : hist) {
+            table.push(new HC(p.first, p.second));
+        }
+        while(table.size()>1) {
+            HC* a = table.top();
+            table.pop();
+            HC* b = table.top();
+            table.pop();
+            HC* parent = new HC(a->data, a->num+b->num);
+            parent->l = a;
+            parent->r = b;
+            a->p = parent;
+            b->p = parent;
+            table.push(parent);
+            //std::cout << a->num << " " << b->num << " -> " << parent->num << " ";
+        }
+        preorder( table.top(), "", dictionary);
+/*
+        std::cout << " dict ready " << std::endl;
+        for (std::pair<int, chunk> a : dictionary) {
+            std::cout << a.first << " ";
+        }
+        std::cout << " dict ready " << std::endl;
+*/
+    }
+
+    virtual bool encode(const std::vector<int>& v, chunk& c) {
+        for (int a : v) {
+            put_element(a, c);
+        }
+        return true;
+    }
+    virtual bool decode(const chunk& c, std::vector<int> &v) {
         return false;
     }
 };
